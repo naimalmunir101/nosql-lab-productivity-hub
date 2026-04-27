@@ -43,9 +43,18 @@ const { ObjectId } = require('mongodb');
  *
  * Hint: insertOne. Nothing fancy.
  */
-async function signupUser(db, userData) {
-  // TODO: implement
-  throw new Error('signupUser not implemented');
+async function signupUser(db, user) {
+  const users = db.collection("users");
+
+  // check if email already exists
+  const existing = await users.findOne({ email: user.email });
+  if (existing) {
+    throw new Error("Email already exists");
+  }
+
+  // insert new user
+  const result = await users.insertOne(user);
+  return result.insertedId;
 }
 
 /**
@@ -64,8 +73,10 @@ async function signupUser(db, userData) {
  * Hint: findOne with an exact-match filter.
  */
 async function loginFindUser(db, email) {
-  // TODO: implement
-  throw new Error('loginFindUser not implemented');
+  const users = db.collection("users");
+
+  const user = await users.findOne({ email });
+  return user;
 }
 
 /**
@@ -83,9 +94,19 @@ async function loginFindUser(db, email) {
  *
  * Hint: find with two filter conditions, then .sort().toArray().
  */
+
 async function listUserProjects(db, ownerId) {
-  // TODO: implement
-  throw new Error('listUserProjects not implemented');
+  const projects = db.collection("projects");
+
+  const result = await projects
+    .find({ 
+      ownerId: ownerId.toString(), // ✅ MATCH STRING
+      archived: false 
+    })
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  return result;
 }
 
 /**
@@ -101,9 +122,19 @@ async function listUserProjects(db, ownerId) {
  *
  * Hint: insertOne again — just remember to add the defaults yourself.
  */
-async function createProject(db, projectData) {
-  // TODO: implement
-  throw new Error('createProject not implemented');
+async function createProject(db, project) {
+  const projects = db.collection("projects");
+
+  const newProject = {
+    name: project.name,
+    description: project.description,
+    ownerId: project.ownerId.toString(), // ✅ VERY IMPORTANT
+    archived: false,
+    createdAt: new Date()
+  };
+
+  const result = await projects.insertOne(newProject);
+  return result.insertedId;
 }
 
 /**
@@ -122,8 +153,14 @@ async function createProject(db, projectData) {
  * Hint: updateOne with the $set operator.
  */
 async function archiveProject(db, projectId) {
-  // TODO: implement
-  throw new Error('archiveProject not implemented');
+  const projects = db.collection("projects");
+
+  const result = await projects.updateOne(
+    { _id: new ObjectId(projectId) },
+    { $set: { archived: true } }
+  );
+
+  return result.modifiedCount;
 }
 
 /**
@@ -144,8 +181,22 @@ async function archiveProject(db, projectId) {
  *       the caller passed one. Then chain .sort({ priority: -1, createdAt: -1 }).
  */
 async function listProjectTasks(db, projectId, status) {
-  // TODO: implement
-  throw new Error('listProjectTasks not implemented');
+  const tasks = db.collection("tasks");
+
+  const filter = {
+    projectId: projectId.toString() // match your DB style
+  };
+
+  if (status) {
+    filter.status = status;
+  }
+
+  const result = await tasks
+    .find(filter)
+    .sort({ priority: -1 }) // higher priority first
+    .toArray();
+
+  return result;
 }
 
 /**
@@ -169,9 +220,24 @@ async function listProjectTasks(db, projectId, status) {
  *
  * Hint: insertOne. Apply defaults for any missing optional fields.
  */
-async function createTask(db, taskData) {
-  // TODO: implement
-  throw new Error('createTask not implemented');
+async function createTask(db, task) {
+  const tasks = db.collection("tasks");
+
+  const newTask = {
+    title: task.title,
+    projectId: task.projectId.toString(), // match your DB style
+    status: "todo",
+    priority: parseInt(task.priority) || 1,
+    tags: task.tags || [],
+    subtasks: (task.subtasks || []).map(t => ({
+      title: t,
+      done: false
+    })),
+    createdAt: new Date()
+  };
+
+  const result = await tasks.insertOne(newTask);
+  return result.insertedId;
 }
 
 /**
@@ -186,11 +252,16 @@ async function createTask(db, taskData) {
  *
  * Hint: updateOne + $set.
  */
-async function updateTaskStatus(db, taskId, newStatus) {
-  // TODO: implement
-  throw new Error('updateTaskStatus not implemented');
-}
+async function updateTaskStatus(db, taskId, status) {
+  const tasks = db.collection("tasks");
 
+  const result = await tasks.updateOne(
+    { _id: new ObjectId(taskId) },
+    { $set: { status: status } }
+  );
+
+  return result.modifiedCount;
+}
 /**
  * Query 9: addTaskTag
  * -------------------------------------------------------------
@@ -208,10 +279,15 @@ async function updateTaskStatus(db, taskId, newStatus) {
  * Hint: which array operator silently skips duplicates? It is NOT $push.
  */
 async function addTaskTag(db, taskId, tag) {
-  // TODO: implement
-  throw new Error('addTaskTag not implemented');
-}
+  const tasks = db.collection("tasks");
 
+  const result = await tasks.updateOne(
+    { _id: new ObjectId(taskId) },
+    { $addToSet: { tags: tag } } // ✅ prevents duplicates
+  );
+
+  return result;
+}
 /**
  * Query 10: removeTaskTag
  * -------------------------------------------------------------
@@ -229,8 +305,14 @@ async function addTaskTag(db, taskId, tag) {
  * Hint: $pull.
  */
 async function removeTaskTag(db, taskId, tag) {
-  // TODO: implement
-  throw new Error('removeTaskTag not implemented');
+  const tasks = db.collection("tasks");
+
+  const result = await tasks.updateOne(
+    { _id: new ObjectId(taskId) },
+    { $pull: { tags: tag } } 
+  );
+
+  return result;
 }
 
 /**
@@ -276,8 +358,13 @@ async function toggleSubtask(db, taskId, subtaskTitle, newDone) {
  * Hint: deleteOne.
  */
 async function deleteTask(db, taskId) {
-  // TODO: implement
-  throw new Error('deleteTask not implemented');
+  const tasks = db.collection("tasks");
+
+  const result = await tasks.deleteOne({
+    _id: new ObjectId(taskId)
+  });
+
+  return result.deletedCount;
 }
 
 /**
@@ -299,9 +386,26 @@ async function deleteTask(db, taskId) {
  * Hint: the operator that says "field's value is one of these" is $in.
  *       Build the filter conditionally based on whether projectId was passed.
  */
-async function searchNotes(db, ownerId, tags, projectId) {
-  // TODO: implement
-  throw new Error('searchNotes not implemented');
+async function searchNotes(db, userId, tags, projectId) {
+  const notes = db.collection("notes");
+
+  const filter = {
+    ownerId: userId.toString()
+  };
+
+  // filter by tags
+  if (tags && tags.length > 0) {
+    filter.tags = { $in: tags };
+  }
+
+  // optional project filter
+  if (projectId) {
+    filter.projectId = projectId.toString();
+  }
+
+  const result = await notes.find(filter).toArray();
+
+  return result;
 }
 
 /**
@@ -337,9 +441,30 @@ async function searchNotes(db, ownerId, tags, projectId) {
  * Hint: $lookup returns an ARRAY (because joins can match many).
  *       $unwind turns a 1-element array into the element itself.
  */
-async function projectTaskSummary(db, ownerId) {
-  // TODO: implement
-  throw new Error('projectTaskSummary not implemented');
+async function projectTaskSummary(db, userId) {
+  const tasks = db.collection("tasks");
+
+  const result = await tasks.aggregate([
+    {
+      $group: {
+        _id: {
+          projectId: "$projectId",
+          status: "$status"
+        },
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $lookup: {
+        from: "projects",
+        localField: "_id.projectId",
+        foreignField: "_id",
+        as: "project"
+      }
+    }
+  ]).toArray();
+
+  return result;
 }
 
 /**
@@ -370,9 +495,27 @@ async function projectTaskSummary(db, ownerId) {
  * Hint: putting $sort and $limit BEFORE $lookup is intentional —
  *       you only want to look up 10 projects, not all of them.
  */
-async function recentActivityFeed(db, ownerId) {
-  // TODO: implement
-  throw new Error('recentActivityFeed not implemented');
+async function recentActivityFeed(db, userId) {
+  const tasks = db.collection("tasks");
+
+  const result = await tasks.aggregate([
+    {
+      $sort: { _id: -1 } // latest tasks first
+    },
+    {
+      $limit: 10
+    },
+    {
+      $lookup: {
+        from: "projects",
+        localField: "projectId",
+        foreignField: "_id",
+        as: "project"
+      }
+    }
+  ]).toArray();
+
+  return result;
 }
 
 // =============================================================================
